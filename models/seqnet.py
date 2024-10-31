@@ -258,7 +258,13 @@ class SeqRoIHeads(RoIHeads):
                 box_labels,
                 box_reg_targets,
             )
-            loss_box_reid = self.reid_loss(box_embeddings, box_pid_labels)
+            # TODO: check fix for `loss_box_reid` being NaN
+            valid_labels = torch.cat(box_pid_labels) >= 0
+            if valid_labels.any():
+                loss_box_reid = self.reid_loss(box_embeddings, box_pid_labels)
+            else:
+                # Set loss to zero if no valid labels
+                loss_box_reid = torch.tensor(0.0, device=box_embeddings.device, requires_grad=True)
             losses.update(loss_box_reid=loss_box_reid)
         else:
             # The IoUs of these boxes are higher than that of proposals,
