@@ -409,21 +409,64 @@ def warmup_lr_scheduler(optimizer, warmup_iters, warmup_factor):
     return torch.optim.lr_scheduler.LambdaLR(optimizer, f)
 
 def resume_from_ckpt(ckpt_path, model, optimizer=None, lr_scheduler=None):
-    ckpt = torch.load(ckpt_path)
-    if 'state_dict' in ckpt.keys():
-        ckpt = ckpt['state_dict']
+    """
+    Resume model, optimizer, and lr_scheduler states from a checkpoint.
 
-    count = 0
-    miss = []
-    for i in ckpt:
-        if 'backbone' in i:
-            model.state_dict()[i.replace('backbone.','backbone.swin.')].copy_(ckpt[i])
-            model.state_dict()[i.replace('backbone.','roi_heads.reid_head.swin.')].copy_(ckpt[i])
-            count += 1
-        else:
-            miss.append(i)
-    print('%d loaded, %d missed:' %(count,len(miss)),miss)
-    return 0
+    Args:
+        ckpt_path (str): Path to the checkpoint file.
+        model (torch.nn.Module): The model to load state into.
+        optimizer (torch.optim.Optimizer, optional): The optimizer to load state into.
+        lr_scheduler (torch.optim.lr_scheduler._LRScheduler, optional): The scheduler to load state into.
+
+    Returns:
+        int: The epoch to start from.
+    """
+    if not osp.exists(ckpt_path):
+        raise FileNotFoundError(f"Checkpoint file not found: {ckpt_path}")
+
+    ckpt = torch.load(ckpt_path, map_location='cpu')
+    epoch = 0  # Default epoch if not found in checkpoint
+
+    # Load model state
+    if 'model' in ckpt:
+        model.load_state_dict(ckpt['model'], strict=False)
+    elif 'state_dict' in ckpt:
+        # If your checkpoint uses a different key for model state, adjust accordingly
+        model_state = {}
+        for k, v in ckpt['state_dict'].items():
+            # Example: Adjust key names if necessary
+            new_k = k.replace('backbone.', 'backbone.swin.') if 'backbone' in k else k
+            model_state[new_k] = v
+        model.load_state_dict(model_state, strict=False)
+    else:
+        raise KeyError("No 'model' or 'state_dict' key found in checkpoint.")
+
+    # Load optimizer state
+    if optimizer and 'optimizer' in ckpt:
+        optimizer.load_state_dict(ckpt['optimizer'])
+    elif optimizer:
+        print("No optimizer state found in checkpoint.")
+
+    # Load lr_scheduler state
+    if lr_scheduler and 'lr_scheduler' in ckpt:
+        lr_scheduler.load_state_dict(ckpt['lr_scheduler'])
+    elif lr_scheduler:
+        print("No lr_scheduler state found in checkpoint.")
+
+    # Retrieve the epoch
+    if 'epoch' in ckpt:
+        epoch = ckpt['epoch'] + 1  # Start from the next epoch
+    else:
+        print("No 'epoch' key found in checkpoint. Starting from epoch 0.")
+
+    # Optionally, handle any missing keys or additional logging
+    missing_keys = set(model.state_dict().keys()) - set(ckpt.get('model', {}).keys())
+    if missing_keys:
+        print(f"Missing keys in the checkpoint for the model: {missing_keys}")
+
+    print(f"Checkpoint loaded. Resuming from epoch {epoch}.")
+
+    return epoch
 
 def set_random_seed(seed):
     torch.manual_seed(seed)
