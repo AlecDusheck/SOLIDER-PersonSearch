@@ -42,7 +42,7 @@ def eval_detection(
             gt_boxes = gt_boxes[inds]
         num_gt = gt_boxes.shape[0]
 
-        if det != []:
+        if det.size != 0:
             det = np.asarray(det)
             inds = np.where(det[:, 4].ravel() >= det_thresh)[0]
             det = det[inds]
