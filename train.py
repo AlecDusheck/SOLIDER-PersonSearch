@@ -82,6 +82,18 @@ def main(args):
     print("Start training")
     start_time = time.time()
     for epoch in range(start_epoch, cfg.SOLVER.MAX_EPOCHS):
+        if args.resume:
+            # Check model preformence at start
+            evaluate_performance(
+                model,
+                gallery_loader,
+                query_loader,
+                device,
+                use_gt=cfg.EVAL_USE_GT,
+                use_cache=cfg.EVAL_USE_CACHE,
+                use_cbgm=cfg.EVAL_USE_CBGM,
+            )
+            
         train_one_epoch(cfg, model, optimizer, train_loader, device, epoch, tfboard)
         lr_scheduler.step()
 
